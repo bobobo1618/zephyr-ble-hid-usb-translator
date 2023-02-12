@@ -10,6 +10,6 @@ menu "Zephyr"
 source "Kconfig.zephyr"
 endmenu
 
-module = APP
-module-str = APP
+module = MYAPP
+module-str = MYAPP
 source "subsys/logging/Kconfig.template.log_config"

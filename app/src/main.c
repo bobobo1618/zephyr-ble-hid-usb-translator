@@ -6,24 +6,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/types.h>
-#include <stddef.h>
 #include <errno.h>
-#include <zephyr/kernel.h>
-#include <zephyr/sys/printk.h>
+#include <stddef.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/conn.h>
-#include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/uuid.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/sys/reboot.h>
 #include <zephyr/sys/slist.h>
+#include <zephyr/types.h>
+#include <zephyr/usb/class/usb_hid.h>
 #include <zephyr/usb/usb_device.h>
 
-LOG_MODULE_REGISTER(myapp);
+LOG_MODULE_REGISTER(myapp, CONFIG_MYAPP_LOG_LEVEL);
 
 BUILD_ASSERT(DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_console), zephyr_cdc_acm_uart),
 	     "Console device is not ACM CDC UART device");
@@ -65,6 +67,23 @@ static uint16_t report_map_size = 0;
 
 static struct hid_report_description *current_report_description = NULL;
 static struct hid_report_description *next_report_description = NULL;
+
+static bool usb_configured;
+static const struct device *hdev;
+static ATOMIC_DEFINE(hid_ep_in_busy, 1);
+
+#define HID_EP_BUSY_FLAG 0
+
+struct report_queue_item {
+	uint8_t *data;
+	uint16_t length;
+};
+struct k_fifo reports;
+
+static K_THREAD_STACK_DEFINE(report_thread_stack, 512);
+static struct k_thread report_thread_data;
+
+K_SEM_DEFINE(usb_ready, 0, 1);
 
 static void fill_reports(struct bt_conn *conn);
 
@@ -126,6 +145,32 @@ static uint8_t notify_func(struct bt_conn *conn, struct bt_gatt_subscribe_params
 		printk("%02x", data_bytes[i]);
 	}
 	printk("\n");
+
+	uint8_t *item_buf = k_malloc(sizeof(struct report_queue_item) + length + 1);
+	struct report_queue_item *item = item_buf;
+	item->data = item_buf + sizeof(struct report_queue_item);
+	item->length = length + 1;
+	item->data[0] = report_id;
+	memcpy(item->data + 1, data, length);
+
+	k_fifo_alloc_put(&reports, item_buf);
+
+	// if (!atomic_test_and_set_bit(hid_ep_in_busy, HID_EP_BUSY_FLAG)) {
+	// 	ret = hid_int_ep_write(hdev, output_buf, length + 1, &wrote);
+	// 	k_free(output_buf);
+	// 	if (ret != 0) {
+	// 		/*
+	// 		 * Do nothing and wait until host has reset the device
+	// 		 * and hid_ep_in_busy is cleared.
+	// 		 */
+	// 		LOG_ERR("Failed to submit report");
+	// 	} else {
+	// 		LOG_DBG("Report submitted");
+	// 	}
+	// } else {
+	// 	LOG_DBG("HID IN endpoint busy");
+
+	// }
 
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -266,6 +311,79 @@ static void subscribe(struct bt_conn *conn)
 	}
 }
 
+static void int_in_ready_cb(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	k_sem_give(&usb_ready);
+}
+
+static void process_reports()
+{
+	LOG_INF("Processing reports...");
+
+	while (true) {
+		struct report_queue_item *item = k_fifo_get(&reports, K_FOREVER);
+		uint32_t wrote;
+		k_sem_take(&usb_ready, K_FOREVER);
+		uint8_t ret = hid_int_ep_write(hdev, item->data, item->length, &wrote);
+		k_free(item);
+		if (ret != 0) {
+			LOG_ERR("Failed to submit report");
+		} else {
+			LOG_DBG("Report submitted");
+		}
+	}
+}
+
+static void status_cb(enum usb_dc_status_code status, const uint8_t *param)
+{
+	switch (status) {
+	case USB_DC_RESET:
+		usb_configured = false;
+		break;
+	case USB_DC_CONFIGURED:
+		if (!usb_configured) {
+			int_in_ready_cb(hdev);
+			usb_configured = true;
+		}
+		break;
+	case USB_DC_SOF:
+		break;
+	default:
+		LOG_DBG("status %u unhandled", status);
+		break;
+	}
+}
+
+static const struct hid_ops ops = {
+	.int_in_ready = int_in_ready_cb,
+};
+
+static void setup_usb_hid()
+{
+	hdev = device_get_binding("HID_0");
+	if (hdev == NULL) {
+		LOG_ERR("Cannot get USB HID Device");
+		return;
+	}
+
+	LOG_INF("HID Device: dev %p", hdev);
+
+	k_fifo_init(&reports);
+	k_thread_create(&report_thread_data, report_thread_stack,
+			K_THREAD_STACK_SIZEOF(report_thread_stack), process_reports, NULL, NULL,
+			NULL, 2, 0, K_NO_WAIT);
+
+	usb_hid_register_device(hdev, report_map_buf, report_map_size, &ops);
+	usb_hid_init(hdev);
+
+	uint8_t ret = usb_enable(status_cb);
+	if (ret != 0) {
+		LOG_ERR("Failed to enable USB");
+		return;
+	}
+}
+
 static void fill_reports(struct bt_conn *conn)
 {
 	if (iterate_report_description()) {
@@ -275,6 +393,7 @@ static void fill_reports(struct bt_conn *conn)
 	}
 	printk("Done filling reports\n");
 	subscribe(conn);
+	setup_usb_hid();
 }
 
 static uint8_t report_chrc_discover_func(struct bt_conn *conn, const struct bt_gatt_attr *attr,
@@ -521,6 +640,9 @@ static void connected(struct bt_conn *conn, uint8_t conn_err)
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
+
+	sys_reboot(SYS_REBOOT_COLD);
+
 	char addr[BT_ADDR_LE_STR_LEN];
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
