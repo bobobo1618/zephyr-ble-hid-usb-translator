@@ -1,5 +1,6 @@
 /* main.c - Application main entry point */
 
+
 /*
  * Copyright (c) 2015-2016 Intel Corporation
  *
@@ -24,6 +25,30 @@
 #include <zephyr/types.h>
 #include <zephyr/usb/class/usb_hid.h>
 #include <zephyr/usb/usb_device.h>
+
+#include <zephyr/drivers/gpio.h>
+
+#define LED0_NODE DT_ALIAS(led0)
+
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+// This enables you to unpair with all devices paired
+// by pluging in the USB with the user button pressed
+#define PAIR_BUTTON
+
+// uncomment this line if you want to reset any pair you
+// have by flashing the board
+// #define RESET_PAIRS
+
+#ifdef PAIR_BUTTON
+
+
+#define SW0_NODE	DT_ALIAS(sw0)
+#if !DT_NODE_HAS_STATUS(SW0_NODE, okay)
+#error "Unsupported board: sw0 devicetree alias is not defined"
+#endif
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios,
+							      {0});
+#endif
 
 LOG_MODULE_REGISTER(myapp, CONFIG_MYAPP_LOG_LEVEL);
 
@@ -780,6 +805,7 @@ void main(void)
 		printk("Failed to load settings.\n");
 	}
 
+
 	bt_conn_auth_cb_register(&auth_cb_display);
 	bt_conn_auth_info_cb_register(&auth_cb_info);
 
@@ -790,5 +816,69 @@ void main(void)
 
 	printk("Bluetooth initialized\n");
 
+	#ifdef RESET_PAIRS
+
+	if(bt_unpair(BT_ID_DEFAULT,BT_ADDR_LE_ANY)){
+		printk("Failed to unpair all connections.\n");
+	}
+	if(settings_save()){
+		printk("Failed to save settings.\n");
+	};
+
+	return;
+
+	#endif
+
+	#ifdef PAIR_BUTTON
+
+
+	int ret;
+	if (!gpio_is_ready_dt(&led)) {
+		return 0;
+	}
+
+	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
+	if (ret < 0) {
+		return 0;
+	}
+
+
+	if (!gpio_is_ready_dt(&button)) {
+		printk("Error: button device %s is not ready\n",
+		       button.port->name);
+		return 0;
+	}
+
+	ret = gpio_pin_configure_dt(&button, GPIO_INPUT);
+	if (ret != 0) {
+		printk("Error %d: failed to configure %s pin %d\n",
+		       ret, button.port->name, button.pin);
+		return 0;
+	}
+
+	ret = gpio_pin_interrupt_configure_dt(&button,
+					      GPIO_INT_EDGE_TO_ACTIVE);
+	if (ret != 0) {
+		printk("Error %d: failed to configure interrupt on %s pin %d\n",
+			ret, button.port->name, button.pin);
+		return 0;
+	}
+
+	if(gpio_pin_get_raw(button.port, button.pin) == 0){
+
+
+		if(bt_unpair(BT_ID_DEFAULT,BT_ADDR_LE_ANY)){
+			printk("Failed to unpair all connections.\n");
+		}
+		if(settings_save()){
+			printk("Failed to save settings.\n");
+		};
+		// just a signal when the pair is resetted
+		for(int i = 0; i < 6; i++) {
+			gpio_pin_toggle_dt(&led);
+			k_msleep(1000);
+		}
+	}
+	#endif
 	start_scan();
 }
