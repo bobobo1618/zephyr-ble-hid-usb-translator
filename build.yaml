@@ -5,9 +5,9 @@ include:
     shield: dongle
   - board: nrf52840_mdk_dongle
     shield: settings_reset
-  - board: seeeduino_xiao_ble
+  - board: xiao_ble
     shield: dongle
-  - board: seeeduino_xiao_ble
+  - board: xiao_ble
     shield: settings_reset
   - board: nrf52840dongle_nrf52840
     shield: reset_button
