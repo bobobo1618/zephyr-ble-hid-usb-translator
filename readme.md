@@ -20,7 +20,7 @@ done that, comment the line and flash again.
 ## Setup
 
 ```
-west init -l config
+west init -l .
 west update
 ```
 
