@@ -28,19 +28,18 @@
 
 #include <zephyr/drivers/gpio.h>
 
+#if IS_ENABLED(CONFIG_LED_INDICATOR)
 #define LED0_NODE DT_ALIAS(led0)
 
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-// This enables you to unpair with all devices paired
-// by pluging in the USB with the user button pressed
-#define PAIR_BUTTON
 
-#ifdef PAIR_BUTTON
+#endif
 
+#if IS_ENABLED(CONFIG_RESET_BUTTON)
 
-#define SW0_NODE	DT_ALIAS(sw0)
+#define SW0_NODE	DT_ALIAS(resetbutton)
 #if !DT_NODE_HAS_STATUS(SW0_NODE, okay)
-#error "Unsupported board: sw0 devicetree alias is not defined"
+#error "Unsupported board: resetbutton devicetree alias is not defined"
 #endif
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios,
 							      {0});
@@ -783,7 +782,15 @@ static struct bt_conn_auth_info_cb auth_cb_info = {
 	.pairing_complete = pairing_complete,
 	.pairing_failed = pairing_failed,
 };
+static void blink(void){
 
+#if IS_ENABLED(CONFIG_LED_INDICATOR)
+	for(int i = 0; i < 6; i++) {
+		gpio_pin_toggle_dt(&led);
+		k_msleep(1000);
+	}
+#endif
+}
 void main(void)
 {
 	// if (usb_enable(NULL)) {
@@ -793,6 +800,7 @@ void main(void)
 	// k_sleep(K_SECONDS(10));
 
 	int err;
+	int ret;
 	err = bt_enable(NULL);
 	if (settings_load()) {
 		printk("Failed to load settings.\n");
@@ -809,6 +817,16 @@ void main(void)
 
 	printk("Bluetooth initialized\n");
 
+#if IS_ENABLED(CONFIG_LED_INDICATOR)
+	if (!gpio_is_ready_dt(&led)) {
+		return 0;
+	}
+
+	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
+	if (ret < 0) {
+		return 0;
+	}
+#endif
 
 #if IS_ENABLED(CONFIG_BLE_CLEAR_BONDS_ON_START)
 
@@ -819,23 +837,12 @@ void main(void)
 		printk("Failed to save settings.\n");
 	};
 
+	blink();
 	return;
 
 #endif
 
-	#ifdef PAIR_BUTTON
-
-
-	int ret;
-	if (!gpio_is_ready_dt(&led)) {
-		return 0;
-	}
-
-	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
-	if (ret < 0) {
-		return 0;
-	}
-
+#if IS_ENABLED(CONFIG_RESET_BUTTON)
 
 	if (!gpio_is_ready_dt(&button)) {
 		printk("Error: button device %s is not ready\n",
@@ -868,11 +875,8 @@ void main(void)
 			printk("Failed to save settings.\n");
 		};
 		// just a signal when the pair is resetted
-		for(int i = 0; i < 6; i++) {
-			gpio_pin_toggle_dt(&led);
-			k_msleep(1000);
-		}
+		blink();
 	}
-	#endif
+#endif
 	start_scan();
 }

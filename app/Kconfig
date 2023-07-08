@@ -17,3 +17,11 @@ source "subsys/logging/Kconfig.template.log_config"
 config BLE_CLEAR_BONDS_ON_START
 	bool "Configuration that clears all bond information when the dongle is plugged in."
 	default n
+
+config RESET_BUTTON
+	bool "Allows the dongle to reset the pairs by plugging with a button pressed"
+	default n
+
+config LED_INDICATOR
+	bool "Indicates the dongle is in reset mode"
+	default y

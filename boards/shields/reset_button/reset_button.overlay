@@ -1,0 +1,8 @@
+
+
+/ {
+	aliases {
+		resetbutton = &button0;
+	};
+};
+

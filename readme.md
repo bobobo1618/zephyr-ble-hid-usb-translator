@@ -14,3 +14,32 @@ can re pair with your device by putting it in pair mode.
 Alternatively, you can flash the firmware with the line `#define RESET_PAIRS`
 uncommented. It will delete any pair key and reset the device. Once you have
 done that, comment the line and flash again.
+
+
+
+## Setup
+
+```
+west init -l config
+west update
+```
+
+## Flashing nrf52840 mdk dongle
+
+```
+west build -p -s ./app -b nrf52840_mdk_dongle  
+
+```
+```
+
+west build -p -s ./app -b nrf52840_mdk_dongle  -- -DSHIELD=settings_reset
+
+```
+## Flash nrf52840dongle_nrf52840
+```
+west build -p -s ./app -b nrf52840dongle_nrf52840  -- -DSHIELD=reset_button && \
+nrfutil pkg generate --hw-version 52 --sd-req=0x00 \
+        --application build/zephyr/zephyr.hex \
+        --application-version 1 dongle.zip && \
+nrfutil dfu usb-serial -pkg dongle.zip -p /dev/ttyACM0
+```
