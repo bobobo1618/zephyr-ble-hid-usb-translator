@@ -1,5 +1,6 @@
 jobs:
   build:
-    uses: .github/workflows/build-user-config.yml
+    uses: ./.github/workflows/build-user-config.yml
     with:
       fallback_binary: "hex"
+      config_path: .
