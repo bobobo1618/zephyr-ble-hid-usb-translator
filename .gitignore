@@ -7,6 +7,6 @@
 .venv
 
 # build
-/build*
+/build/*
 
 __pycache__/
