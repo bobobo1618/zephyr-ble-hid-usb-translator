@@ -1,10 +1,10 @@
 
 # Zephyr ble hid usb translator
 This is a project intended to use a bluetooth keyboard as a dongle. 
-This allows you to use the keyboard in BIOS and can offer more stability than bluetooth connection
+This allows you to use the keyboard in BIOS and can offer more stability than standard bluetooth connection.
 
 ## Installing in a board
-Similar to ZMK, download the latest build of the supported board in [github actions](https://github.com/charlesmst/zephyr-ble-hid-usb-translator/actions). For boards that don't use `uf2` bootloader, check []
+Similar to ZMK, download the latest build of the supported board in [github actions](https://github.com/charlesmst/zephyr-ble-hid-usb-translator/actions). For boards that don't use `uf2` bootloader, check [Flash with nrfutil](#flashing-with-nrfutil).
 
 ## How to pair
 Once you plug the dongle, it will wait for a keyboard that wants to connect to bluetooth. You should put your keyboard in bluetooth pairing mode. On a ZMK board, you can do that by selecting the profile you want to use for the dongle and pressing the key assigned to `&bt BT_CLR`.
@@ -13,7 +13,7 @@ Once you plug the dongle, it will wait for a keyboard that wants to connect to b
 
 If you are using a board that supports reset button, simply plug the dongle leaving the button pressed. The board will blink 3 times indicating it is has reseted all the pairing keys it had. You can pair with any keyboard again.
 
-Boards that don't support the reset button should be flashed with the shield `settings_reset` and then flashed again with the `dongle` shield
+Boards that don't support the reset button should be flashed with the shield `settings_reset` and then flashed again with the `dongle` shield.
 
 # Supported boards
 Currently the projectg is auto building for using uf2 for:
@@ -27,8 +27,8 @@ Currently the projectg is auto building for using uf2 for:
 Boards that offer a programable button, such as nordic nrf52840 dongle, can be built using reset\_dongle shield. The ones don't support that can use the normal dongle shield.
 
 - `dongle`: The simple dongle implementation.
-- `settings_reset`: Clears the dongle pairing keys if you need to pair to another
-- `reset_button`: Is the dongle implementation with support to unpair without flashing, by pressing a button while plugging in
+- `settings_reset`: Clears the dongle pairing keys if you need to pair to another.
+- `reset_button`: Is the dongle implementation with support to unpair without flashing, by pressing a button while plugging in.
 
 # Build locally
 
