@@ -13,3 +13,7 @@ endmenu
 module = MYAPP
 module-str = MYAPP
 source "subsys/logging/Kconfig.template.log_config"
+
+config BLE_CLEAR_BONDS_ON_START
+	bool "Configuration that clears all bond information when the dongle is plugged in."
+	default n

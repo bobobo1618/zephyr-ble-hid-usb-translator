@@ -35,10 +35,6 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 // by pluging in the USB with the user button pressed
 #define PAIR_BUTTON
 
-// uncomment this line if you want to reset any pair you
-// have by flashing the board
-// #define RESET_PAIRS
-
 #ifdef PAIR_BUTTON
 
 
@@ -51,9 +47,6 @@ static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios,
 #endif
 
 LOG_MODULE_REGISTER(myapp, CONFIG_MYAPP_LOG_LEVEL);
-
-BUILD_ASSERT(DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_console), zephyr_cdc_acm_uart),
-	     "Console device is not ACM CDC UART device");
 
 static void start_scan(void);
 
@@ -816,7 +809,8 @@ void main(void)
 
 	printk("Bluetooth initialized\n");
 
-	#ifdef RESET_PAIRS
+
+#if IS_ENABLED(CONFIG_BLE_CLEAR_BONDS_ON_START)
 
 	if(bt_unpair(BT_ID_DEFAULT,BT_ADDR_LE_ANY)){
 		printk("Failed to unpair all connections.\n");
@@ -827,7 +821,7 @@ void main(void)
 
 	return;
 
-	#endif
+#endif
 
 	#ifdef PAIR_BUTTON
 
