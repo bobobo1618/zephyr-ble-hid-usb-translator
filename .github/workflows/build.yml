@@ -1,37 +1,5 @@
-name: Build
-
-on: [push, pull_request]
-
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container: zephyrprojectrtos/ci:latest
-    env:
-      CMAKE_PREFIX_PATH: /opt/toolchains
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          path: example-application
-
-      - name: Initialize
-        working-directory: example-application
-        run: |
-          west init -l .
-          west update
-
-      - name: Build firmware
-        working-directory: example-application
-        run: |
-          west build -b custom_plank app
-
-      - name: Twister Tests
-        working-directory: example-application
-        run: |
-          ../zephyr/scripts/twister -G --board-root boards/ --testsuite-root ./tests/
-
-      - name: Archive firmware
-        uses: actions/upload-artifact@v2
-        with:
-          name: firmware
-          path: example-application/build/zephyr/zephyr.*
+    uses: .github/workflows/build-user-config.yml
+    with:
+      fallback_binary: "hex"
